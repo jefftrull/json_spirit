@@ -44,7 +44,6 @@ endif()
 include_directories( . )
 include_directories( SYSTEM ${Boost_INCLUDE_DIRS} )
 
-
 file( GLOB SRC_FILES libs/json/src/*.cpp )
 add_library( json STATIC ${SRC_FILES} )
 if( JSON_SPIRIT_FUZZING )
