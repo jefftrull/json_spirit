@@ -75,7 +75,7 @@ if( JSON_SPIRIT_FUZZING )
     # or the gcc equivalent?
     string(REGEX MATCH "afl-g\\+\\+$" AFL ${CMAKE_CXX_COMPILER})
   else()
-    message( FATAL "Fuzzing only works with gcc or Clang" )
+    message( FATAL_ERROR "Fuzzing only works with gcc or Clang" )
   endif()
 
   if( AFL )
@@ -92,7 +92,7 @@ if( JSON_SPIRIT_FUZZING )
   endif()
 
   if( WIN32 AND NOT AFL )
-    message( FATAL "libFuzzer does not work under Windows, for now" )
+    message( FATAL_ERROR "libFuzzer does not work under Windows, for now" )
   endif()
 
   set_target_properties( json_fuzz PROPERTIES COMPILE_FLAGS ${FUZZ_TARGET_COMPILE_FLAGS}

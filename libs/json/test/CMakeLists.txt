@@ -51,7 +51,7 @@ if( JSON_SPIRIT_FUZZING )
     target_link_libraries( fuzzer fuzz )
 
   else()
-    message( FATAL "Don't know which fuzzer to build - afl compilers not in use and Clang+LLVM_ROOT not specified" )
+    message( FATAL_ERROR "Don't know which fuzzer to build - afl compilers not in use and Clang+LLVM_ROOT not specified" )
   endif()
 
   target_link_libraries( fuzzer json_fuzz ${Boost_LOCALE_LIBRARY} )
