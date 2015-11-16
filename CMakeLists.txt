@@ -64,7 +64,7 @@ if( JSON_SPIRIT_FUZZING )
   # create a version of the json library with the sanitizer enabled
   # for use by the fuzzer executable in the test directory
   add_library( json_fuzz STATIC ${SRC_FILES} )
-  set( FUZZ_TARGET_COMPILE_FLAGS "-fsanitize=${SANITIZER}" )
+  set( FUZZ_TARGET_COMPILE_FLAGS "-fsanitize=${SANITIZER} -g -O1" )
   set( FUZZ_TARGET_LINK_FLAGS    "-fsanitize=${SANITIZER}" )
   # depending on the compiler and sanitizer, we may need to
   # add extra flags
