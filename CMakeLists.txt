@@ -15,7 +15,7 @@ project( json_spirit )
 option(JSON_SPIRIT_DEBUG_PARSER "Trace spirit parser in Debug config" OFF)
 
 option(JSON_SPIRIT_FUZZING "Enable build of fuzzing targets" OFF)
-set( SANITIZER address )    # "memory" is the other supported (but probably buggy) option
+set( SANITIZER address )    # "memory" is the other supported option
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_definitions( -std=c++11 )
@@ -66,6 +66,12 @@ if( JSON_SPIRIT_FUZZING )
   add_library( json_fuzz STATIC ${SRC_FILES} )
   set( FUZZ_TARGET_COMPILE_FLAGS "-fsanitize=${SANITIZER} -g -O1" )
   set( FUZZ_TARGET_LINK_FLAGS    "-fsanitize=${SANITIZER}" )
+  if( SANITIZER STREQUAL "memory" )
+    # requires Clang and a custom-built stdlib; for now we only support libc++
+    set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -fsanitize-memory-track-origins -stdlib=libc++" )
+    set( FUZZ_TARGET_LINK_FLAGS    "${FUZZ_TARGET_LINK_FLAGS}    -fsanitize-memory-track-origins -stdlib=libc++" )
+  endif()
+
   # depending on the compiler and sanitizer, we may need to
   # add extra flags
   if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
@@ -82,13 +88,15 @@ if( JSON_SPIRIT_FUZZING )
     if( SANITIZER STREQUAL "address" )
       # add "hardening options"
       set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -D_FORTIFY_SOURCE=2 -fstack-protector-all" )
-    elseif( ${SANITIZER} STREQUAL "memory" )
-      set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -fsanitize-memory-track-origins" )
+    elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
+      message( FATAL_ERROR "gcc does not support memory sanitizing" )
     endif()
   elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
-    # assuming libFuzzer
+    # assuming libFuzzer.  Add its coverage flags
     set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -fsanitize-coverage=edge" )
     set( FUZZ_TARGET_LINK_FLAGS    "${FUZZ_TARGET_LINK_FLAGS}    -fsanitize-coverage=edge" )
+  else()
+    message( FATAL_ERROR "libFuzzer is not supported under gcc at this time.  You can use AFL (asan only), though, if you set CMAKE_CXX_COMPILER to an afl-instrumented compiler" )
   endif()
 
   if( WIN32 AND NOT AFL )

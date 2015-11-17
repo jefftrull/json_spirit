@@ -43,12 +43,16 @@ if( JSON_SPIRIT_FUZZING )
   elseif( ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" ) AND LLVM_ROOT )
     # Build the libFuzzer-based fuzzer
     add_executable( fuzzer fuzz_lib.cpp )
+    set_target_properties( fuzzer PROPERTIES COMPILE_FLAGS "-std=c++11 ${FUZZ_TARGET_COMPILE_FLAGS}" )
 
     # and the library it depends on
     file(GLOB LIBFUZZ_SOURCES ${LLVM_ROOT}/lib/Fuzzer/*.cpp)
-    include_directories( ${LLVM_ROOT}/lib/Fuzzer )
     add_library( fuzz ${LIBFUZZ_SOURCES} )
     target_link_libraries( fuzzer fuzz )
+    if ( SANITIZER STREQUAL "memory" )
+      # For the memory sanitizer we must build libFuzzer with the sanitizer enabled
+      set_target_properties( fuzz PROPERTIES COMPILE_FLAGS "-std=c++11 -stdlib=libc++ -fsanitize=memory -O3" )
+    endif()
 
   else()
     message( FATAL_ERROR "Don't know which fuzzer to build - afl compilers not in use and Clang+LLVM_ROOT not specified" )
