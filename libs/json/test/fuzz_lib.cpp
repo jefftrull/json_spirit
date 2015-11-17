@@ -46,7 +46,7 @@ extern "C" int LLVMFuzzerTestOneInput(const unsigned char *data, unsigned long s
             std::string quoted_string(sbeg+1, scur);
             try {
                // throw if not a valid UTF-8 string:
-               auto ws=to_utf<wchar_t>(quoted_string,"UTF-8",stop);
+               std::wstring ws=to_utf<wchar_t>(quoted_string,"UTF-8",stop);
             } catch (conversion_error) {
                return 0;  // this is not an interesting string
             }
@@ -79,6 +79,3 @@ extern "C" int LLVMFuzzerTestOneInput(const unsigned char *data, unsigned long s
 
    return 0;   // the only valid code, for now
 }
-
-// with non-ASCII back on we have this: "[nan(a1-:\"),\".\"\334\265a\""
-// test again when assert is fixed
