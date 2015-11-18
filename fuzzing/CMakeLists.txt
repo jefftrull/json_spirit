@@ -5,35 +5,23 @@
 #   file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #
 
-set( SANITIZER address )    # "memory" is the other supported option
+set( SANITIZER "address" CACHE STRING "which sanitizer to use with fuzzing - address or memory" )
 
-# FUZZING USAGE:
-
-# libFuzzer (requires Clang and its tooling library):
-# cmake -DLLVM_ROOT=/path/to/llvm -DJSON_SPIRIT_FUZZING=ON ..;make
-# libs/json/test/fuzzer -max_len=256 -jobs=2 /path/to/corpus
-
-# AFL via Clang "fast" instrumentation
-# cmake -DCMAKE_CXX_COMPILER=/path/to/afl/afl-clang-fast++ -DJSON_SPIRIT_FUZZING=ON LLVM_ROOT=/path/to/llvm ..;make
-# /path/to/afl/afl-fuzz -i /path/to/corpus -o FINDINGS -m none -- libs/json/test/fuzzer
-
-# AFL via g++
-# cmake -DCMAKE_CXX_COMPILER=/path/to/afl/afl-g++ -DJSON_SPIRIT_FUZZING=ON ..;make
-# /path/to/afl/afl-fuzz -i /path/to/corpus -o FINDINGS -m none -- libs/json/test/fuzzer
-
-# create a version of the json library with the sanitizer enabled
-# for use by the fuzzer executable in the test directory
-add_library( json_fuzz STATIC ${SRC_FILES} )
-set( FUZZ_TARGET_COMPILE_FLAGS "-fsanitize=${SANITIZER} -g -O1" )
-set( FUZZ_TARGET_LINK_FLAGS    "-fsanitize=${SANITIZER}" )
-if( SANITIZER STREQUAL "memory" )
+# set up directory-wide fuzzer build settings
+add_compile_options( "-fsanitize=${SANITIZER}" "-g" "-O1" )
+if( SANITIZER STREQUAL "address" )
+  add_compile_options( "-fstack-protector-all" )
+  add_definitions( "-D_FORTIFY_SOURCE=2" )
+  set( FUZZ_TARGET_LINK_FLAGS "-fsanitize=${SANITIZER}" )
+elseif( SANITIZER STREQUAL "memory" )
   # requires Clang and a custom-built stdlib; for now we only support libc++
-  set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -fsanitize-memory-track-origins -stdlib=libc++" )
-  set( FUZZ_TARGET_LINK_FLAGS    "${FUZZ_TARGET_LINK_FLAGS}    -fsanitize-memory-track-origins -stdlib=libc++" )
+  add_compile_options( "-fsanitize-memory-track-origins" "-stdlib=libc++" )
+  set( FUZZ_TARGET_LINK_FLAGS "-fsanitize=${SANITIZER} -fsanitize-memory-track-origins -stdlib=libc++" )
+else()
+  message( FATAL_ERROR "unknown sanitizer ${SANITIZER}" )
 endif()
 
-# depending on the compiler and sanitizer, we may need to
-# add extra flags
+# Check for unsupported combinations
 if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
   # are we using the special AFL instrumented compiler?
   string(REGEX MATCH "afl-clang-fast\\+\\+$" AFL ${CMAKE_CXX_COMPILER})
@@ -44,49 +32,46 @@ else()
   message( FATAL_ERROR "Fuzzing only works with gcc or Clang" )
 endif()
 
-if( AFL )
-  if( SANITIZER STREQUAL "address" )
-    # add "hardening options"
-    set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -D_FORTIFY_SOURCE=2 -fstack-protector-all" )
-  elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
+if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
+  if( SANITIZER STREQUAL "memory" )
     message( FATAL_ERROR "gcc does not support memory sanitizing" )
   endif()
-elseif( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" )
-  # assuming libFuzzer.  Add its coverage flags
-  set( FUZZ_TARGET_COMPILE_FLAGS "${FUZZ_TARGET_COMPILE_FLAGS} -fsanitize-coverage=edge" )
-  set( FUZZ_TARGET_LINK_FLAGS    "${FUZZ_TARGET_LINK_FLAGS}    -fsanitize-coverage=edge" )
-else()
-  message( FATAL_ERROR "libFuzzer is not supported under gcc at this time.  You can use AFL (asan only), though, if you set CMAKE_CXX_COMPILER to an afl-instrumented compiler" )
+  if( NOT AFL ) 
+    # libFuzzer requires the sanitize-coverage option, which is not present in gcc
+    message( FATAL_ERROR "libFuzzer is not supported under gcc at this time."
+                         "You can use AFL (asan only), though, if you set CMAKE_CXX_COMPILER to an afl-instrumented compiler" )
+  endif()
 endif()
 
 if( WIN32 AND NOT AFL )
   message( FATAL_ERROR "libFuzzer does not work under Windows, for now" )
 endif()
 
-set_target_properties( json_fuzz PROPERTIES COMPILE_FLAGS ${FUZZ_TARGET_COMPILE_FLAGS}
-                                            LINK_FLAGS    ${FUZZ_TARGET_LINK_FLAGS} )
-
-# produce the extra fuzzer target
+# produce the fuzzer driver target
 if( AFL )
+  # driver executable supplied to afl-fuzz gets input from stdin
   add_executable( fuzzer fuzz_afl.cpp )
 elseif( ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" ) AND LLVM_ROOT )
-  # Build the libFuzzer-based fuzzer
+  # the libFuzzer-based binary is built from libFuzzer and a special driver function
   add_executable( fuzzer fuzz_lib.cpp )
-  set_target_properties( fuzzer PROPERTIES COMPILE_FLAGS "-std=c++11 ${FUZZ_TARGET_COMPILE_FLAGS}" )
 
-  # and the library it depends on
+  # the library it depends on
   file(GLOB LIBFUZZ_SOURCES ${LLVM_ROOT}/lib/Fuzzer/*.cpp)
   add_library( fuzz ${LIBFUZZ_SOURCES} )
   target_link_libraries( fuzzer fuzz )
-  if ( SANITIZER STREQUAL "memory" )
-    # For the memory sanitizer we must build libFuzzer with the sanitizer enabled
-    set_target_properties( fuzz PROPERTIES COMPILE_FLAGS "-std=c++11 -stdlib=libc++ -fsanitize=memory -O3" )
+  if ( SANITIZER STREQUAL "address" )
+    # Don't apply sanitizers to libFuzzer, except for "memory".  Override with defaults:
+    string( REPLACE " " ";" LIBFUZZ_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}" )
+    set_target_properties( fuzz PROPERTIES COMPILE_OPTIONS "${LIBFUZZ_CXX_FLAGS}" )
   endif()
+  target_include_directories( fuzz SYSTEM PUBLIC ${LLVM_ROOT}/lib/Fuzzer )
 
 else()
   message( FATAL_ERROR "Don't know which fuzzer to build - afl compilers not in use and Clang+LLVM_ROOT not specified" )
 endif()
 
-target_link_libraries( fuzzer json_fuzz ${Boost_LOCALE_LIBRARY} )
-set_target_properties( fuzzer PROPERTIES COMPILE_FLAGS ${FUZZ_TARGET_COMPILE_FLAGS}
-                                           LINK_FLAGS    ${FUZZ_TARGET_LINK_FLAGS} )
+# Create a version of the JSON library with sanitizers and coverage enabled
+add_library( json_fuzz STATIC ${SRC_FILES} )
+
+target_link_libraries( fuzzer json_fuzz  ${Boost_LOCALE_LIBRARY} )
+set_target_properties( fuzzer PROPERTIES LINK_FLAGS ${FUZZ_TARGET_LINK_FLAGS} )
