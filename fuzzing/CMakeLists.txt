@@ -6,6 +6,10 @@
 #
 
 set( SANITIZER "address" CACHE STRING "which sanitizer to use with fuzzing - address or memory" )
+set( LLVM_ROOT "" CACHE PATH "path to the LLVM build containing libFuzzer" )
+# These settings are only needed for MSan builds:
+set( ICU_MSAN_PATH "" CACHE PATH "path to the memory sanitized ICU build" )
+set( LIBCXX_MSAN_PATH "" CACHE PATH "path to the memory sanitized libc++ build" )
 
 # set up directory-wide fuzzer build settings
 add_compile_options( "-fsanitize=${SANITIZER}" "-g" "-O1" )
@@ -17,6 +21,12 @@ elseif( SANITIZER STREQUAL "memory" )
   # requires Clang and a custom-built stdlib; for now we only support libc++
   add_compile_options( "-fsanitize-memory-track-origins" "-stdlib=libc++" )
   set( FUZZ_TARGET_LINK_FLAGS "-fsanitize=${SANITIZER} -fsanitize-memory-track-origins -stdlib=libc++" )
+  if( ICU_MSAN_PATH )
+    link_directories( ${ICU_MSAN_PATH}/lib )
+  endif()
+  if( LIBCXX_MSAN_PATH )
+    link_directories( ${LIBCXX_MSAN_PATH}/lib )
+  endif()
 else()
   message( FATAL_ERROR "unknown sanitizer ${SANITIZER}" )
 endif()
@@ -74,4 +84,6 @@ endif()
 add_library( json_fuzz STATIC ${SRC_FILES} )
 
 target_link_libraries( fuzzer json_fuzz  ${Boost_LOCALE_LIBRARY} )
-set_target_properties( fuzzer PROPERTIES LINK_FLAGS ${FUZZ_TARGET_LINK_FLAGS} )
+set_target_properties( fuzzer PROPERTIES
+  LINK_FLAGS ${FUZZ_TARGET_LINK_FLAGS}
+  INSTALL_RPATH_USE_LINK_PATH ON )    # pulls ICU path into executable's RPATH
