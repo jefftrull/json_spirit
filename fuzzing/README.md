@@ -20,7 +20,7 @@ Doing a memory sanitizer build requires that library dependencies such as the C+
 (All tested on Ubuntu 15.10)
 * Address sanitizing with AFL and gcc
 ```
-cmake -DCMAKE_CXX_COMPILER=afl-g++ -DBOOST_ROOT=/path/to/boost_1_59_0 -DJSON_SPIRIT_FUZZING=ON ..
+cmake -DCMAKE_CXX_COMPILER=afl-g++ -DBOOST_ROOT=/path/to/boost_1_59_0 -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=address..
 make fuzzer
 afl-fuzz -i CORPUS -o FINDINGS -m none -- fuzzing/fuzzer
 ```
