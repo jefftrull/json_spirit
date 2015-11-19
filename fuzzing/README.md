@@ -1,5 +1,10 @@
 ## Instructions for building and running fuzzers on json_spirit
 
+### Prerequisites (Ubuntu 15.10)
+* Boost 1.59 or later, built suitably for your compiler and sanitizer choices
+* If using Clang, a fresh build installed in your PATH and LD_LIBRARY_PATH
+* The package **afl-clang** if you want to use AFL
+
 It is easy and fun to fuzz **json_spirit**.  Defining `JSON_SPIRIT_FUZZING` to cmake will enable fuzzing targets.  For a given build you just have to choose:
 
 1. Which fuzzing system to use: AFL or libFuzzer
@@ -12,16 +17,15 @@ It is easy and fun to fuzz **json_spirit**.  Defining `JSON_SPIRIT_FUZZING` to c
 Building fuzzers for AFL requires the use of a special compiler wrapper, such as `afl-clang-fast++`.  It inserts a special pass in Clang/LLVM that instruments the code appropriately.  If you supply this special wrapper as the value of `CMAKE_CXX_COMPILER`, AFL mode will be enabled.  Using `afl-g++` will enable a similar but slower method via gcc.
 
 #### Examples
-(All tested on Ubuntu 15.10)
 * Address sanitizing with AFL and gcc
 ```
-cmake -DCMAKE_CXX_COMPILER=afl-g++ -DBOOST_ROOT=/path/to/boost_1_59_0 -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=address..
+cmake -DCMAKE_CXX_COMPILER=afl-g++ -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=address -DBOOST_ROOT=/path/to/boost_1_59_0  ..
 make fuzzer
 afl-fuzz -i CORPUS -o FINDINGS -m none -- fuzzing/fuzzer
 ```
 * Address sanitizing with AFL and Clang
 ```
-cmake -DCMAKE_CXX_COMPILER=afl-clang-fast++ -DBOOST_ROOT=/path/to/boost_1_59_0_clang -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=address ..
+cmake -DCMAKE_CXX_COMPILER=afl-clang-fast++ -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=address -DBOOST_ROOT=/path/to/boost_1_59_0_clang ..
 make fuzzer
 afl-fuzz -i CORPUS -o FINDINGS -m none -- fuzzing/fuzzer
 ```
@@ -31,7 +35,7 @@ Specifying `LLVM_ROOT` to cmake, with Clang as the compiler, will enable this mo
 #### Example
 * Address sanitizing with libFuzzer
 ```
-cmake -DCMAKE_CXX_COMPILER=clang++ -DBOOST_ROOT=/path/to/boost_1_59_0_clang -DJSON_SPIRIT_FUZZING=ON -DLLVM_ROOT=/path/to/oss/llvm -DSANITIZER=address ..
+cmake -DCMAKE_CXX_COMPILER=clang++ -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=address -DLLVM_ROOT=/path/to/oss/llvm -DBOOST_ROOT=/path/to/boost_1_59_0_clang ..
 make fuzzer
 fuzzing/fuzzer ./CORPUS
 ```
@@ -42,13 +46,13 @@ Doing a memory sanitizer build requires that library dependencies such as the C+
 ### Examples
 * Memory sanitizing with AFL and Clang
 ```
-cmake -DCMAKE_CXX_COMPILER=afl-clang-fast++ -DBOOST_ROOT=/path/to/boost_1_59_0_clang_msan -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=memory -DICU_MSAN_PATH=/path/to/icu-56-install -DLIBCXX_MSAN_PATH=/path/to/llvm_msan/build ..
+cmake -DCMAKE_CXX_COMPILER=afl-clang-fast++ -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=memory -DBOOST_ROOT=/path/to/boost_1_59_0_clang_msan -DICU_MSAN_PATH=/path/to/icu-56-install -DLIBCXX_MSAN_PATH=/path/to/llvm_msan/build ..
 make fuzzer
 afl-fuzz -i CORPUS -o FINDINGS -m none -- fuzzing/fuzzer
 ```
 * Memory sanitizing with libFuzzer
 ```
-cmake -DCMAKE_CXX_COMPILER=clang++ -DBOOST_ROOT=/path/to/boost_1_59_0_clang_msan -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=memory -DLLVM_ROOT=/path/to/oss/llvm -DICU_MSAN_PATH=/path/to/icu-56-install -DLIBCXX_MSAN_PATH=/path/to/oss/llvm_msan/build ..
+cmake -DCMAKE_CXX_COMPILER=clang++ -DJSON_SPIRIT_FUZZING=ON -DSANITIZER=memory -DLLVM_ROOT=/path/to/oss/llvm -DBOOST_ROOT=/path/to/boost_1_59_0_clang_msan -DICU_MSAN_PATH=/path/to/icu-56-install -DLIBCXX_MSAN_PATH=/path/to/oss/llvm_msan/build ..
 make fuzzer
 fuzzing/fuzzer ./CORPUS
 ```
