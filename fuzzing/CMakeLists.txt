@@ -60,7 +60,7 @@ endif()
 # produce the fuzzer driver target
 if( AFL )
   # driver executable supplied to afl-fuzz gets input from stdin
-  add_executable( fuzzer fuzz_afl.cpp )
+  add_executable( fuzzer fuzz_afl.cpp fuzz_onecase.cpp )
 elseif( ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" ) AND LLVM_ROOT )
   # the libFuzzer-based binary is built from libFuzzer and a special driver function
   # libFuzzer itself
@@ -76,7 +76,7 @@ elseif( ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" ) AND LLVM_ROOT )
   list( APPEND FUZZ_TARGET_COMPILE_OPTIONS "-fsanitize-coverage=edge" )
 
   # the driver function
-  add_executable( fuzzer fuzz_lib.cpp )
+  add_executable( fuzzer fuzz_lib.cpp fuzz_onecase.cpp )
   target_link_libraries( fuzzer fuzz )
 else()
   message( FATAL_ERROR "Don't know which fuzzer to build - afl compilers not in use and Clang+LLVM_ROOT not specified" )
