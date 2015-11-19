@@ -12,14 +12,14 @@ set( ICU_MSAN_PATH "" CACHE PATH "path to the memory sanitized ICU build" )
 set( LIBCXX_MSAN_PATH "" CACHE PATH "path to the memory sanitized libc++ build" )
 
 # set up directory-wide fuzzer build settings
-add_compile_options( "-fsanitize=${SANITIZER}" "-g" "-O1" )
+set( FUZZ_TARGET_COMPILE_OPTIONS "-fsanitize=${SANITIZER}" "-g" "-O1" )
 if( SANITIZER STREQUAL "address" )
-  add_compile_options( "-fstack-protector-all" )
-  add_definitions( "-D_FORTIFY_SOURCE=2" )
+  list( APPEND FUZZ_TARGET_COMPILE_OPTIONS "-fstack-protector-all" )
+  set( FUZZ_TARGET_COMPILE_DEFINITIONS "_FORTIFY_SOURCE=2" )
   set( FUZZ_TARGET_LINK_FLAGS "-fsanitize=${SANITIZER}" )
 elseif( SANITIZER STREQUAL "memory" )
   # requires Clang and a custom-built stdlib; for now we only support libc++
-  add_compile_options( "-fsanitize-memory-track-origins" "-stdlib=libc++" )
+  list( APPEND FUZZ_TARGET_COMPILE_OPTIONS "-fsanitize-memory-track-origins" "-stdlib=libc++" )
   set( FUZZ_TARGET_LINK_FLAGS "-fsanitize=${SANITIZER} -fsanitize-memory-track-origins -stdlib=libc++" )
   if( ICU_MSAN_PATH )
     link_directories( ${ICU_MSAN_PATH}/lib )
@@ -63,19 +63,21 @@ if( AFL )
   add_executable( fuzzer fuzz_afl.cpp )
 elseif( ( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" ) AND LLVM_ROOT )
   # the libFuzzer-based binary is built from libFuzzer and a special driver function
-  add_executable( fuzzer fuzz_lib.cpp )
-
-  # the library it depends on
+  # libFuzzer itself
   file(GLOB LIBFUZZ_SOURCES ${LLVM_ROOT}/lib/Fuzzer/*.cpp)
   add_library( fuzz ${LIBFUZZ_SOURCES} )
-  target_link_libraries( fuzzer fuzz )
-  if ( SANITIZER STREQUAL "address" )
-    # Don't apply sanitizers to libFuzzer, except for "memory".  Override with defaults:
-    string( REPLACE " " ";" LIBFUZZ_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}" )
-    set_target_properties( fuzz PROPERTIES COMPILE_OPTIONS "${LIBFUZZ_CXX_FLAGS}" )
+  if ( SANITIZER STREQUAL "memory" )
+    # libFuzzer only gets sanitizer arguments for the memory case, to avoid false positives
+    set_target_properties( fuzz PROPERTIES COMPILE_OPTIONS "${FUZZ_TARGET_COMPILE_OPTIONS}" )
   endif()
   target_include_directories( fuzz SYSTEM PUBLIC ${LLVM_ROOT}/lib/Fuzzer )
 
+  # add sanitize-coverage to all remaining targets, i.e., the code being tested:
+  list( APPEND FUZZ_TARGET_COMPILE_OPTIONS "-fsanitize-coverage=edge" )
+
+  # the driver function
+  add_executable( fuzzer fuzz_lib.cpp )
+  target_link_libraries( fuzzer fuzz )
 else()
   message( FATAL_ERROR "Don't know which fuzzer to build - afl compilers not in use and Clang+LLVM_ROOT not specified" )
 endif()
@@ -83,7 +85,10 @@ endif()
 # Create a version of the JSON library with sanitizers and coverage enabled
 add_library( json_fuzz STATIC ${SRC_FILES} )
 
-target_link_libraries( fuzzer json_fuzz  ${Boost_LOCALE_LIBRARY} )
-set_target_properties( fuzzer PROPERTIES
+set_target_properties( fuzzer json_fuzz PROPERTIES
   LINK_FLAGS ${FUZZ_TARGET_LINK_FLAGS}
+  COMPILE_OPTIONS "${FUZZ_TARGET_COMPILE_OPTIONS}"
+  COMPILE_DEFINITIONS "${FUZZ_TARGET_COMPILE_DEFINITIONS}"
   INSTALL_RPATH_USE_LINK_PATH ON )    # pulls ICU path into executable's RPATH
+
+target_link_libraries( fuzzer json_fuzz ${Boost_LOCALE_LIBRARY} )
