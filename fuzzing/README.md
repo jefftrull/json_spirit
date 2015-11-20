@@ -1,5 +1,8 @@
 ## Instructions for building and running fuzzers on json_spirit
 
+### What is "fuzzing" and why should we do it?
+Fuzzing is a technique for finding bugs first popularized in the security research community.  It involves using massive amounts of random inputs to try to find vulnerable code.  Recently tools have been developed that use branch coverage information to better direct the random inputs.  This approach greatly reduces the amount of time required to find a problem.  Two popular implementations of this approach are LLVM's [libFuzzer](http://llvm.org/docs/LibFuzzer.html) and the standalone tool [American Fuzzy Lop](http://lcamtuf.coredump.cx/afl).
+
 ### Prerequisites (Ubuntu 15.10)
 * Boost 1.59 or later, built suitably for your compiler and sanitizer choices
 * If using Clang, a fresh build installed in your PATH and LD_LIBRARY_PATH
